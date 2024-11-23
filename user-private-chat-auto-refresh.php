@@ -96,9 +96,9 @@ function user_private_chat_auto_refresh_display_logged_in()
         $currentUser = wp_get_current_user();
         ?>
         <div id="floating-button">
-            <a href="#" id="open-chat-box" onclick="toggleChatBox()">
-                <button>Hubungi Kami</button>
-            </a>
+            <button id="open-chat-box" onclick="toggleChatBox()">
+                <span>Hubungi Kami</span>
+            </button>
         </div>
         <div id="chat-modal" style="display:none;">
             <div id="chat-box">
@@ -112,10 +112,14 @@ function user_private_chat_auto_refresh_display_logged_in()
                     <div id="sender-list"></div>
                     <div id="user-chat-list"></div>
                 </div>
-                <div id="chat-send-layout">
-                    <input id="chat-message" placeholder="Ketik pesan...">
-                    <button id="send-message">Kirim</button>
-                </div>
+                <form onsubmit="return submitMessage()">
+
+                    <div id="chat-send-layout">
+                        <input id="chat-message" placeholder="Ketik pesan...">
+                        <button id="send-message">Kirim</button>
+                    </div>
+                </form>
+
             </div>
         </div>
         <style>
@@ -128,6 +132,7 @@ function user_private_chat_auto_refresh_display_logged_in()
             }
 
             #floating-button button {
+                position: relative;
                 background-color: #0073e6;
                 color: white;
                 border: none;
@@ -357,7 +362,9 @@ function user_private_chat_auto_refresh_display_logged_in()
 
                 openUserList();
 
-
+                function submitMessage(){
+                    return false;
+                }
                 function openUserList(){
                     currentReceiver = 0;
                     jQuery("#title-user").html("Percakapan");
@@ -598,7 +605,6 @@ function user_private_chat_auto_refresh_load_chat_senders()
         FROM {$wpdb->prefix}user_chats
         WHERE receiver_id = %d OR sender_id= %d
         GROUP BY chat_name
-        ORDER BY timestamp DESC
     ";
     // Ambil daftar pengirim
     $results = $wpdb->get_results(
@@ -614,10 +620,13 @@ function user_private_chat_auto_refresh_load_chat_senders()
     );
 
     if ($results) {
+
+
+        $countNewMessage = 0;
         foreach ($results as $sender) {
             $formatted_time = easyDate($sender->last_message_time);
             $unread = ($sender->unread_count > 0) ? 'unread' : '';
-
+            $countNewMessage += $sender->unread_count;
 
             $avatar_url = get_avatar_url($sender->chat_id, array('size' => 55));
 
@@ -647,6 +656,28 @@ function user_private_chat_auto_refresh_load_chat_senders()
                     <span class="badge <?= $unread; ?>"><?= esc_html($sender->unread_count); ?></span>
                 </div>
             </div>
+
+            <?php
+        }
+
+        if ($unread) {
+            ?>
+
+            <style>
+                #open-chat-box::after {
+                    content: '<?= $countNewMessage; ?>';
+                    background: red;
+                    color: white;
+                    font-size: 9pt;
+                    width: 19px;
+                    text-align: center;
+                    height: 19px;
+                    border-radius: 255px;
+                    position: fixed;
+                    bottom: 50px;
+                    right: 15px;
+                }
+            </style>
             <?php
         }
     }
