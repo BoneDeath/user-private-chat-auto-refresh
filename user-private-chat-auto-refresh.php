@@ -16,6 +16,50 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+function easyDate($timestamp)
+{
+    $timezone_str = get_option('timezone_string'); // Misalnya 'Asia/Jakarta'
+    if (!$timezone_str) {
+        // Jika zona waktu tidak diset, gunakan offset GMT dari WordPress
+        $timezone_offset = get_option('gmt_offset'); // Contoh: GMT+7
+        $timezone_str = 'Etc/GMT' . ($timezone_offset > 0 ? '-' : '+') . abs($timezone_offset);
+    }
+
+    // Membuat objek DateTime untuk timestamp yang dikirim dengan zona waktu WordPress
+    $date = new DateTime($timestamp, new DateTimeZone($timezone_str));
+
+    // Mendapatkan waktu sekarang sesuai dengan zona waktu yang diset di WordPress
+    $now = new DateTime('now', new DateTimeZone($timezone_str));
+
+    // Menghitung selisih waktu
+    $interval = $now->diff($date);
+
+    // Menentukan format output berdasarkan durasi yang sudah lewat
+    if ($interval->y > 0) {
+        $timeAgo = $interval->y . ' tahun yang lalu';
+    } elseif ($interval->m > 0) {
+        $timeAgo = $interval->m . ' bulan yang lalu';
+    } elseif ($interval->d > 0) {
+        if ($interval->d == 1) {
+            $timeAgo = 'Kemarin';
+        } else {
+            $timeAgo = $interval->d . ' hari yang lalu';
+        }
+    } elseif ($interval->h > 0) {
+        $timeAgo = $interval->h . ' jam yang lalu';
+    } elseif ($interval->i > 0) {
+        $timeAgo = $interval->i . ' menit yang lalu';
+    } else {
+        $timeAgo = 'Baru saja';
+    }
+
+
+    // Menampilkan hasil
+    return $timeAgo;
+}
+
+
+
 // Membuat tabel untuk menyimpan chat ketika plugin diaktifkan
 function user_private_chat_auto_refresh_create_chat_table()
 {
@@ -469,7 +513,7 @@ function user_private_chat_auto_refresh_send_chat_message()
     $sender_id = intval($_POST['sender_id']);
     $sender_name = strval($_POST['sender_name']);
     $receiver_id = intval($_POST['receiver_id']);
-    $receiver_name=get_user_meta( $receiver_id, "first_name", true).' '.get_user_meta( $receiver_id, "last_name", true);
+    $receiver_name = get_user_meta($receiver_id, "first_name", true) . ' ' . get_user_meta($receiver_id, "last_name", true);
     $message = sanitize_text_field($_POST['message']);
 
     // Masukkan pesan ke database
@@ -479,7 +523,7 @@ function user_private_chat_auto_refresh_send_chat_message()
             'sender_id' => $sender_id,
             'sender_name' => $sender_name,
             'receiver_id' => $receiver_id,
-            'receiver_name'=>$receiver_name,
+            'receiver_name' => $receiver_name,
             'message' => $message,
             'is_unread' => 1
         )
@@ -571,7 +615,7 @@ function user_private_chat_auto_refresh_load_chat_senders()
 
     if ($results) {
         foreach ($results as $sender) {
-            $formatted_time = date('d-m-y H:i', strtotime($sender->last_message_time));
+            $formatted_time = easyDate($sender->last_message_time);
             $unread = ($sender->unread_count > 0) ? 'unread' : '';
 
 
@@ -590,7 +634,7 @@ function user_private_chat_auto_refresh_load_chat_senders()
                 <img class="img-user" src="<?= $avatar_url; ?>" />
                 <div class="sender-left">
                     <span>
-                        <strong><?=esc_html($sender->chat_name); ?></strong>
+                        <strong><?= esc_html($sender->chat_name); ?></strong>
                     </span>
                     <span>
                         <?= esc_html($sender->pesan_terakhir); ?>
