@@ -96,7 +96,7 @@ function user_private_chat_auto_refresh_display_logged_in()
         $currentUser = wp_get_current_user();
         ?>
         <div id="floating-button">
-            <button id="open-chat-box" onclick="toggleChatBox()">
+            <button class="open-chat-box" onclick="toggleChatBox()">
                 <span>Hubungi Kami</span>
             </button>
         </div>
@@ -353,11 +353,27 @@ function user_private_chat_auto_refresh_display_logged_in()
             #title-user:hover {
                 background: #eee;
             }
+
+            .unread-message {
+                background: red;
+                color: white;
+                display: inline-flex;
+                font-size: 9pt;
+                max-width: 10px;
+                min-width: 10px;
+                text-align: center;
+                min-height: 10px;
+                max-height: 10px;
+                border-radius: 255px;
+            }
         </style>
         <?php
         // JavaScript untuk membuka/menutup chat box dan mengirim pesan
         echo '<script>
                 var currentReceiver = 0; // Ganti dengan ID penerima yang sesuai
+                var temp_currentReceiver = 0;
+                var ajaxLoadChat;
+
                 let timeoutId;
 
                 openUserList();
@@ -367,6 +383,7 @@ function user_private_chat_auto_refresh_display_logged_in()
                 }
                 function openUserList(){
                     currentReceiver = 0;
+                    if(ajaxLoadChat!=undefined) ajaxLoadChat.abort();
                     jQuery("#title-user").html("Percakapan");
                     jQuery("#messages").hide();
                     jQuery("#sender-list").show();
@@ -393,7 +410,16 @@ function user_private_chat_auto_refresh_display_logged_in()
                 
                 function toggleChatBox() {
                     var modal = document.getElementById("chat-modal");
-                    modal.style.display = (modal.style.display === "none" || modal.style.display === "") ? "block" : "none";
+                    var isHidden=(modal.style.display === "none" || modal.style.display === "");
+                    modal.style.display =  (isHidden)? "block" : "none";
+                    if(currentReceiver!=0){
+                        temp_currentReceiver=currentReceiver;
+                        currentReceiver=0;
+                        if(ajaxLoadChat!=undefined) ajaxLoadChat.abort();
+                    }else{
+                        currentReceiver=temp_currentReceiver;
+                    }
+
                 }
 
                 // Fungsi untuk mengirim pesan
@@ -479,9 +505,10 @@ function user_private_chat_auto_refresh_display_logged_in()
                         receiver_id: currentReceiver
                     };
 
-                    return jQuery.get("' . admin_url('admin-ajax.php') . '", data, function(response) {
+                    ajaxLoadChat=jQuery.get("' . admin_url('admin-ajax.php') . '", data, function(response) {
                         document.getElementById("messages").innerHTML = response;
                     });
+                    return ajaxLoadChat;
                 }
 
                 // Memuat pesan berdasarkan sender yang dipilih
@@ -566,8 +593,9 @@ function user_private_chat_auto_refresh_load_chat_messages()
             $formatted_time = date('H:i', strtotime($message->timestamp));
             $me = ($user_id == $message->sender_id);
             $sender_name = ($me) ? 'Anda' : $message->sender_name;
-            $isread = (($me) ? ($message->is_unread == 0) ? '&#x2705;' : '<span style="filter:grayscale(1)">&#x2705;</font>' : '');
-            echo '<div class="chat-box ' . $sender_name . '"><small class="status-read">' . esc_html($sender_name) . '</small><br> ' . esc_html($message->message) . '<br><br><small class="status-read">' . $formatted_time . ' ' . $isread . '</small></div>';
+            $isread = (($me) ? ($message->is_unread == 0) ? '&#x2705;' : '<span style="filter:grayscale(1)">&#x2705;</span>' : '');
+            $isreadIndicator = ((!$me) ? ($message->is_unread == 1) ? 'unread-message' : '' : '');
+            echo '<div class="chat-box  ' . $sender_name . '"><small class="status-read">' . esc_html($sender_name) . '</small><br> ' . esc_html($message->message) . '<br><br><small class="status-read">' . $formatted_time . ' ' . $isread . '<span class="' . $isreadIndicator . '">&nbsp;</span></small></div>';
         }
 
 
@@ -595,16 +623,27 @@ function user_private_chat_auto_refresh_load_chat_senders()
     global $wpdb;
     $user_id = intval($_GET['user_id']);
     $query = "
-        SELECT
-            CASE WHEN sender_id = %d THEN CONCAT('Anda: ',message) ELSE message END as pesan_terakhir,
-            max(timestamp) as last_message_time,
-            CASE WHEN sender_id != %d THEN max(is_unread) END as unread_count,
-            CASE WHEN sender_id = %d THEN receiver_id ELSE sender_id END as chat_id,
-            CASE WHEN sender_id = %d THEN receiver_name ELSE sender_name END as chat_name
-            
-        FROM {$wpdb->prefix}user_chats
-        WHERE receiver_id = %d OR sender_id= %d
-        GROUP BY chat_name
+SELECT
+    CASE WHEN wuc.sender_id = %d THEN CONCAT('anda: ',wuc.message) ELSE wuc.message END as message,
+    wuc.timestamp as timestamp,
+    CASE WHEN wuc.sender_id = %d THEN wuc.receiver_id ELSE wuc.sender_id END AS chat_id,
+    CASE WHEN wuc.sender_id = %d THEN wuc.receiver_name ELSE wuc.sender_name END AS chat_name,
+    CASE WHEN (wuc.sender_id != %d AND is_unread=1) THEN 1 ELSE 0 END as belumDibaca
+
+FROM wp_user_chats wuc
+WHERE (wuc.sender_id = %d OR wuc.receiver_id = %d)
+  AND wuc.timestamp = (
+      SELECT MAX(timestamp)
+      FROM wp_user_chats
+      WHERE (sender_id = wuc.sender_id OR receiver_id = wuc.sender_id)
+      AND (sender_id = %d OR receiver_id = %d)
+      AND (
+          (sender_id = wuc.sender_id AND receiver_id = wuc.receiver_id) 
+          OR (sender_id = wuc.receiver_id AND receiver_id = wuc.sender_id)
+      )
+  )
+ORDER BY chat_name;
+
     ";
     // Ambil daftar pengirim
     $results = $wpdb->get_results(
@@ -616,17 +655,21 @@ function user_private_chat_auto_refresh_load_chat_senders()
             $user_id,
             $user_id,
             $user_id,
+            $user_id,
+            $user_id,
+            $user_id,
         )
     );
 
     if ($results) {
 
-
-        $countNewMessage = 0;
+        $unreadCount = 0;
         foreach ($results as $sender) {
-            $formatted_time = easyDate($sender->last_message_time);
-            $unread = ($sender->unread_count > 0) ? 'unread' : '';
-            $countNewMessage += $sender->unread_count;
+            $formatted_time = easyDate($sender->timestamp);
+            if ($sender->belumDibaca == 1)
+                $unreadCount++;
+
+            $unreadClass = ($sender->belumDibaca == 1) ? 'unread' : '';
 
             $avatar_url = get_avatar_url($sender->chat_id, array('size' => 55));
 
@@ -646,26 +689,26 @@ function user_private_chat_auto_refresh_load_chat_senders()
                         <strong><?= esc_html($sender->chat_name); ?></strong>
                     </span>
                     <span>
-                        <?= esc_html($sender->pesan_terakhir); ?>
+                        <?= esc_html($sender->message); ?>
                     </span>
                 </div>
                 <div class="sender-right">
                     <span class="sender-date"><?= $formatted_time ?></span>
                     <br>
                     <br>
-                    <span class="badge <?= $unread; ?>"><?= esc_html($sender->unread_count); ?></span>
+                    <span class="badge <?= $unreadClass; ?>"></span>
                 </div>
             </div>
 
             <?php
         }
 
-        if ($unread) {
+        if (($unreadCount > 0)) {
             ?>
 
             <style>
-                #open-chat-box::after {
-                    content: '<?= $countNewMessage; ?>';
+                .open-chat-box::after {
+                    content: '';
                     background: red;
                     color: white;
                     font-size: 9pt;
