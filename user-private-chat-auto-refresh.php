@@ -366,6 +366,13 @@ function user_private_chat_auto_refresh_display_logged_in()
                 max-height: 10px;
                 border-radius: 255px;
             }
+            .noChat{
+                display: flex;
+                align-self: center;
+                align-items: center;
+                text-align: center;
+                height: 100%;
+            }
         </style>
         <?php
         // JavaScript untuk membuka/menutup chat box dan mengirim pesan
@@ -723,6 +730,8 @@ ORDER BY chat_name;
             </style>
             <?php
         }
+    }else{
+        echo'<div class="noChat">Belum ada obrolan, hanya admin yang dapat memulai obrolan</div>';
     }
 
 
