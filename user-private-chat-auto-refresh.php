@@ -6,9 +6,6 @@
  * Author: BoneDeath <a href="https://github.com/BoneDeath">Github</a>,<a href="https://www.linkedin.com/in/m-hasanuddin-webdev">LinkedIn</a>, Support me, <a href="https://buymeacoffee.com/mhasannudiz">Buy me a coffe ☕</a>
  * License: GPL2
  */
-ini_set('display_errors', '1');
-ini_set('display_startup_errors', '1');
-error_reporting(E_ALL);
 wp_enqueue_script('jquery');
 
 // Menghindari akses langsung
