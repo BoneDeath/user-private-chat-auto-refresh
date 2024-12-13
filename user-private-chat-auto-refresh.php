@@ -434,9 +434,11 @@ function user_private_chat_auto_refresh_display_logged_in()
                     }
                 });
 
+                var isWaitSend=false;
                 // Mengirim pesan melalui AJAX
                 function sendMessage(message) {
-                    if(currentReceiver==0) return;
+                    if(currentReceiver==0 || isWaitSend) return;
+                    isWaitSend=true; //pause tombol send jika pesan sebelunmnya masih mengirim
                     var data = {
                         action: "send_chat_message",
                         message: message,
@@ -447,6 +449,7 @@ function user_private_chat_auto_refresh_display_logged_in()
 
                     jQuery.post("' . admin_url('admin-ajax.php') . '", data, function(response) {
                         document.getElementById("chat-message").value = ""; // Reset input pesan
+                        isWaitSend=false; //
                         loadMessages(); // Refresh chat setelah pesan dikirim
                     });
                 }
@@ -728,7 +731,7 @@ ORDER BY chat_name;
             <?php
         }
     }else{
-        echo'<div class="noChat">Belum ada obrolan, hanya admin yang dapat memulai obrolan</div>';
+        echo'<div class="noChat">Belum ada obrolan</div>';
     }
 
 
@@ -745,7 +748,7 @@ function user_private_chat_auto_refresh_search_user_chat()
     $user_id = intval($_GET['user_id']);
     $nama = strval($_GET['nama']);
 
-    $query = "SELECT ID, display_name FROM {$wpdb->prefix}users WHERE ID != %d AND display_name LIKE '%$nama%' LIMIT 10";
+    $query = "SELECT ID, display_name FROM {$wpdb->prefix}users WHERE ID != %d AND display_name LIKE '%$nama%' LIMIT 5";
     // Ambil daftar pengirim
     $results = $wpdb->get_results(
         $wpdb->prepare(
