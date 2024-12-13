@@ -556,28 +556,48 @@ add_action('wp_footer', 'user_private_chat_auto_refresh_display_logged_in');
 function user_private_chat_auto_refresh_send_chat_message()
 {
     global $wpdb;
-    $sender_id = intval($_POST['sender_id']);
-    $sender_name = strval($_POST['sender_name']);
-    $receiver_id = intval($_POST['receiver_id']);
-    $receiver_name = get_user_meta($receiver_id, "first_name", true) . ' ' . get_user_meta($receiver_id, "last_name", true);
-    $message = sanitize_text_field($_POST['message']);
 
-    // Masukkan pesan ke database
-    $wpdb->insert(
-        $wpdb->prefix . 'user_chats',
-        array(
-            'sender_id' => $sender_id,
-            'sender_name' => $sender_name,
-            'receiver_id' => $receiver_id,
-            'receiver_name' => $receiver_name,
-            'message' => $message,
-            'is_unread' => 1
-        )
-    );
+    // Pastikan respon JSON jika ada error
+    try {
+        $sender_id = intval($_POST['sender_id']);
+        $sender_name = strval($_POST['sender_name']);
+        $receiver_id = intval($_POST['receiver_id']);
+        $receiver_name = get_user_meta($receiver_id, "first_name", true) . ' ' . get_user_meta($receiver_id, "last_name", true);
+        $message = sanitize_text_field($_POST['message']);
+
+        // Validasi data input
+        if (empty($sender_id) || empty($receiver_id) || empty($message)) {
+            throw new Exception("Data tidak lengkap. Mohon periksa input Anda.");
+        }
+
+        // Masukkan pesan ke database
+        $inserted = $wpdb->insert(
+            $wpdb->prefix . 'user_chats',
+            array(
+                'sender_id' => $sender_id,
+                'sender_name' => $sender_name,
+                'receiver_id' => $receiver_id,
+                'receiver_name' => $receiver_name,
+                'message' => $message,
+                'is_unread' => 1
+            )
+        );
+
+        if ($inserted === false) {
+            throw new Exception("Gagal menyimpan pesan ke database.");
+        }
+
+        // Jika berhasil
+        wp_send_json_success(array('message' => 'Pesan berhasil dikirim.'));
+    } catch (Exception $e) {
+        // Jika terjadi error, kirim respon JSON error
+        wp_send_json_error(array('error' => $e->getMessage()));
+    }
 
     wp_die(); // Mengakhiri AJAX request
 }
 add_action('wp_ajax_send_chat_message', 'user_private_chat_auto_refresh_send_chat_message');
+
 
 // Fungsi untuk memuat pesan chat
 function user_private_chat_auto_refresh_load_chat_messages()
