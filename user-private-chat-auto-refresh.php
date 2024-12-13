@@ -453,6 +453,9 @@ function user_private_chat_auto_refresh_display_logged_in()
                         isWaitSend=false; //
                         console.log(data)
                         loadMessages(); // Refresh chat setelah pesan dikirim
+                    }).fail(function(jqXHR, textStatus, errorThrown) {
+                        console.error("userprivatechat failed:", textStatus, errorThrown);
+                        isWaitSend = false;
                     });
                 }
 
