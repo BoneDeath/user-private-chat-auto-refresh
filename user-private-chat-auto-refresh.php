@@ -438,20 +438,20 @@ function user_private_chat_auto_refresh_display_logged_in()
                 // Mengirim pesan melalui AJAX
                 function sendMessage(message) {
                     if(currentReceiver==0 || isWaitSend) return;
-                    console.log("penerima :"+currentReceiver+", pengirim:'.$currentUser->ID.'")
+                    // console.log("penerima :"+currentReceiver+", pengirim:'.$currentUser->ID.'")
                     isWaitSend=true; //pause tombol send jika pesan sebelunmnya masih mengirim
                     var data = {
                         action: "send_chat_message",
                         message: message,
                         sender_id: ' . $currentUser->ID . ',
-                        sender_name: "' . $currentUser->first_name . ' ' . $currentUser->last_name . '",
+                        sender_name: "'. $currentUser->display_name.'",
                         receiver_id: currentReceiver,
                     };
 
                     jQuery.post("' . admin_url('admin-ajax.php') . '", data, function(response) {
                         document.getElementById("chat-message").value = ""; // Reset input pesan
                         isWaitSend=false; //
-                        console.log(data)
+                        // console.log(data)
                         loadMessages(); // Refresh chat setelah pesan dikirim
                     }).fail(function(jqXHR, textStatus, errorThrown) {
                         console.error("userprivatechat failed:", textStatus, errorThrown);
@@ -556,43 +556,25 @@ add_action('wp_footer', 'user_private_chat_auto_refresh_display_logged_in');
 function user_private_chat_auto_refresh_send_chat_message()
 {
     global $wpdb;
+    
+    $sender_id = intval($_POST['sender_id']);
+    $sender_name = strval($_POST['sender_name']);
+    $receiver_id = intval($_POST['receiver_id']);
+    $receiver_name = get_user_meta($receiver_id, "display_name", true);
+    $message = sanitize_text_field($_POST['message']);
 
-    // Pastikan respon JSON jika ada error
-    try {
-        $sender_id = intval($_POST['sender_id']);
-        $sender_name = strval($_POST['sender_name']);
-        $receiver_id = intval($_POST['receiver_id']);
-        $receiver_name = get_user_meta($receiver_id, "first_name", true) . ' ' . get_user_meta($receiver_id, "last_name", true);
-        $message = sanitize_text_field($_POST['message']);
-
-        // Validasi data input
-        if (empty($sender_id) || empty($receiver_id) || empty($message)) {
-            throw new Exception("Data tidak lengkap. Mohon periksa input Anda.");
-        }
-
-        // Masukkan pesan ke database
-        $inserted = $wpdb->insert(
-            $wpdb->prefix . 'user_chats',
-            array(
-                'sender_id' => $sender_id,
-                'sender_name' => $sender_name,
-                'receiver_id' => $receiver_id,
-                'receiver_name' => $receiver_name,
-                'message' => $message,
-                'is_unread' => 1
-            )
-        );
-
-        if ($inserted === false) {
-            throw new Exception("Gagal menyimpan pesan ke database.");
-        }
-
-        // Jika berhasil
-        wp_send_json_success(array('message' => 'Pesan berhasil dikirim.'));
-    } catch (Exception $e) {
-        // Jika terjadi error, kirim respon JSON error
-        wp_send_json_error(array('error' => $e->getMessage()));
-    }
+    // Masukkan pesan ke database
+    $wpdb->insert(
+        $wpdb->prefix . 'user_chats',
+        array(
+            'sender_id' => $sender_id,
+            'sender_name' => $sender_name,
+            'receiver_id' => $receiver_id,
+            'receiver_name' => $receiver_name,
+            'message' => $message,
+            'is_unread' => 1
+        )
+    );
 
     wp_die(); // Mengakhiri AJAX request
 }
@@ -662,11 +644,11 @@ SELECT
     CASE WHEN wuc.sender_id = %d THEN wuc.receiver_name ELSE wuc.sender_name END AS chat_name,
     CASE WHEN (wuc.sender_id != %d AND is_unread=1) THEN 1 ELSE 0 END as belumDibaca
 
-FROM wp_user_chats wuc
+FROM {$wpdb->prefix}user_chats wuc
 WHERE (wuc.sender_id = %d OR wuc.receiver_id = %d)
   AND wuc.timestamp = (
       SELECT MAX(timestamp)
-      FROM wp_user_chats
+      FROM {$wpdb->prefix}user_chats
       WHERE (sender_id = wuc.sender_id OR receiver_id = wuc.sender_id)
       AND (sender_id = %d OR receiver_id = %d)
       AND (
