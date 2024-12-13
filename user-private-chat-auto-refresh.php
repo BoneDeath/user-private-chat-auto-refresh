@@ -438,6 +438,7 @@ function user_private_chat_auto_refresh_display_logged_in()
                 // Mengirim pesan melalui AJAX
                 function sendMessage(message) {
                     if(currentReceiver==0 || isWaitSend) return;
+                    console.log("penerima :"+currentReceiver+", pengirim:'.$currentUser->ID.'")
                     isWaitSend=true; //pause tombol send jika pesan sebelunmnya masih mengirim
                     var data = {
                         action: "send_chat_message",
